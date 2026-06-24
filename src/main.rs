@@ -56,6 +56,30 @@ Environment:
     );
 }
 
+fn spawn_token_renewer(store: ConfigStore) {
+    use tokio::time::{Duration, sleep};
+    tokio::spawn(async move {
+        // Renew every 24 h — well within the 768 h period. On failure we log
+        // and retry next cycle rather than crashing; a single missed renewal
+        // is harmless given the long period.
+        let interval = Duration::from_secs(24 * 3600);
+        loop {
+            sleep(interval).await;
+            let client = match vault::VaultClient::new(store.clone()) {
+                Ok(c) => c,
+                Err(e) => {
+                    tracing::error!(?e, "token renewer: failed to build vault client");
+                    continue;
+                }
+            };
+            match client.renew_self().await {
+                Ok(ttl) => tracing::info!(ttl_secs = ttl, "vault token renewed"),
+                Err(e) => tracing::error!(?e, "vault token renewal failed — will retry in 24 h"),
+            }
+        }
+    });
+}
+
 #[cfg(unix)]
 fn spawn_sighup_reloader(store: ConfigStore) {
     use tokio::signal::unix::{SignalKind, signal};
@@ -101,6 +125,7 @@ async fn main() -> Result<()> {
         .with_context(|| format!("loading kytti config from {cfg_path}"))?;
     tracing::info!(path = %store.path().display(), "config + token loaded");
     spawn_sighup_reloader(store.clone());
+    spawn_token_renewer(store.clone());
 
     let stdio_mode = raw_args.iter().any(|a| a == "--stdio");
     if stdio_mode {

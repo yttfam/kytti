@@ -89,6 +89,27 @@ impl VaultClient {
         }
     }
 
+    /// Renew the token kytti is currently holding via `auth/token/renew-self`.
+    /// Returns the new TTL in seconds. The token string itself is unchanged —
+    /// no store update needed.
+    pub async fn renew_self(&self) -> Result<u64, KyttiError> {
+        let snap = self.snapshot();
+        let url = renew_url(&snap.config.vault.addr);
+        let resp = self
+            .http
+            .post(&url)
+            .header("X-Vault-Token", &snap.token)
+            .send()
+            .await?;
+        let body = collect_body(resp).await?;
+        let ttl = body
+            .get("auth")
+            .and_then(|a| a.get("lease_duration"))
+            .and_then(Value::as_u64)
+            .unwrap_or(0);
+        Ok(ttl)
+    }
+
     pub async fn list(&self, path: &str) -> Result<Vec<String>, KyttiError> {
         let snap = self.snapshot();
         let url = list_url(&snap.config.vault.addr, path);
@@ -142,6 +163,10 @@ pub fn map_status_code(status: u16, body: Option<&Value>) -> KyttiError {
         s if (400..=499).contains(&s) => KyttiError::Internal("vault rejected request".to_string()),
         s => KyttiError::Internal(format!("vault returned {s}")),
     }
+}
+
+pub fn renew_url(addr: &str) -> String {
+    format!("{}/v1/auth/token/renew-self", addr.trim_end_matches('/'))
 }
 
 pub fn read_url(addr: &str, path: &str) -> String {
