@@ -173,7 +173,7 @@ fn finish(res: Result<serde_json::Value, KyttiError>) -> Result<CallToolResult, 
             } else {
                 v.to_string()
             };
-            Ok(CallToolResult::success(vec![Content::text(body)]))
+            Ok(CallToolResult::success(vec![ContentBlock::text(body)]))
         }
         Err(e) => Err(e.into()),
     }
@@ -184,7 +184,7 @@ impl ServerHandler for Kytti {
     fn get_info(&self) -> ServerInfo {
         ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(Implementation::from_build_env())
-            .with_protocol_version(ProtocolVersion::LATEST)
+            .with_protocol_version(ProtocolVersion::V_2025_11_25)
             .with_instructions(
                 "kytti — read-only HashiCorp Vault gateway. \
                  Tools: vault_status, vault_get, vault_list. \

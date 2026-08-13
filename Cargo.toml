@@ -1,13 +1,13 @@
 [package]
 name = "kytti"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 description = "Typed read-only HashiCorp Vault gateway exposed as a streamable-http MCP"
 license = "MIT"
 repository = "https://github.com/calibrae/kytti"
 
 [dependencies]
-rmcp = { version = "1.5", features = ["server", "macros", "transport-io", "transport-streamable-http-server"] }
+rmcp = { version = "3.1", features = ["server", "macros", "transport-io", "transport-streamable-http-server"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "io-std", "signal", "sync", "fs", "net", "time"] }
 tokio-util = "0.7"
 axum = "0.8"
@@ -30,5 +30,3 @@ lto = "thin"
 codegen-units = 1
 strip = true
 
-[patch.crates-io]
-rmcp = { git = "https://github.com/calibrae/rmcp", branch = "feat/auto-accept-sessions" }

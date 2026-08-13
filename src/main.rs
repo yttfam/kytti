@@ -15,7 +15,8 @@ use rmcp::{
     transport::{
         stdio,
         streamable_http_server::{
-            StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
+            StreamableHttpServerConfig, StreamableHttpService,
+            session::local::LocalSessionManager,
         },
     },
 };
@@ -148,7 +149,12 @@ async fn main() -> Result<()> {
 
     let mut http_config = StreamableHttpServerConfig::default()
         .with_cancellation_token(cancel.child_token())
-        .with_accept_unknown_sessions(true);
+        // Sessionless mode: kytti has no per-session state, every request is
+        // independently handled. Eliminates the redeploy-404 class entirely
+        // and aligns with the MCP 2026-07-28 stateless path. Legacy clients
+        // (2025-03-26 / 2025-11-25) are still served — protocol negotiation
+        // happens per-request, no initialize handshake required.
+        .with_legacy_session_mode(false);
     match std::env::var("KYTTI_ALLOWED_HOSTS") {
         Ok(raw) if raw.trim() == "*" => {
             tracing::warn!(
