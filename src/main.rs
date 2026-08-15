@@ -9,6 +9,7 @@ mod tools;
 mod vault;
 
 use anyhow::{Context, Result};
+use axum::extract::State;
 use config::ConfigStore;
 use rmcp::{
     ServiceExt,
@@ -55,6 +56,25 @@ Environment:
 ",
         env!("CARGO_PKG_VERSION")
     );
+}
+
+/// `GET /health` — always open, no auth. Probes vault seal-status so monitors
+/// get a real upstream signal, not just a static OK. Matches palazzo's shape:
+/// `{"status":"ok","version":"…","vault":"reachable"|"sealed"|"unreachable"}`.
+async fn health_handler(State(store): State<ConfigStore>) -> axum::Json<serde_json::Value> {
+    let vault_field = match vault::VaultClient::new(store) {
+        Err(_) => "unreachable",
+        Ok(client) => match client.status().await {
+            Ok(s) if s.sealed => "sealed",
+            Ok(_) => "reachable",
+            Err(_) => "unreachable",
+        },
+    };
+    axum::Json(serde_json::json!({
+        "status": "ok",
+        "version": env!("CARGO_PKG_VERSION"),
+        "vault": vault_field,
+    }))
 }
 
 fn spawn_token_renewer(store: ConfigStore) {
@@ -187,7 +207,10 @@ async fn main() -> Result<()> {
         http_config,
     );
 
-    let app = axum::Router::new().nest_service("/mcp", service);
+    let app = axum::Router::new()
+        .nest_service("/mcp", service)
+        .route("/health", axum::routing::get(health_handler))
+        .with_state(store.clone());
 
     let cancel_for_signal = cancel.clone();
     tokio::spawn(async move {
